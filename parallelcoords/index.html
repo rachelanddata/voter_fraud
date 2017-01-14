@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Identify patterns in how Texas counties voted.">
+    <meta name="author" content="">
+
+    <title>Texas County Voter Patterns</title>
+
+    <!-- Bootstrap core CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//cdn.datatables.net/1.10.13/css/jquery.dataTables.min.css">
+    <!-- Custom styles for this template -->
+    <style type="text/css">
+        svg {
+            font: 10px sans-serif;
+        }
+        
+        canvas,
+        svg {
+            position: absolute;
+        }
+        
+        #chart {
+            position: relative;
+            height: 340px;
+        }
+        
+        .brush .extent {
+            fill-opacity: .3;
+            stroke: #fff;
+            shape-rendering: crispEdges;
+        }
+        
+        .axis line,
+        .axis path {
+            fill: none;
+            stroke: #000;
+            shape-rendering: crispEdges;
+        }
+        
+        .axis text {
+            text-shadow: 0 1px 0 #fff;
+        }
+        
+        #footer {
+            padding: 20px;
+            text-align: center;
+        }
+        
+        th {
+            font-size: 10px;
+        }
+        
+        td {
+            font-size: 10px;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="jumbotron">
+
+        <h1>How Texas Counties Voted</h1>
+        <p>The visualization below utilizes <a href="http://d3js.org">d3js</a>, Census data, and Voting data to create a parallel coordinates visualization. The visualization represents dimensionality behind the counties in Texas and how those counties voted in the 2016 Presidential election. Each line represents a single county. Please note, the dimensionality on each axis is of the county as a whole from the 2015 Census ACS data (ex: 30% of county population are Millennials, <strong>not</strong> 30% of Millennials in the county voted.)</p>
+
+    </div>
+
+
+    <div class="container">
+        <strong>2016 Texas Voting</strong>
+        <br> Selected Counties:<strong id="rendered-count"></strong>/254</strong>
+        <p>Click and drag over any dimensional axis to narrow your subset of data. Click back on the axis to clear the brush.</p>
+
+        <div class="row">
+            <div id="chart">
+                <canvas id="foreground"></canvas>
+                <svg></svg>
+            </div>
+
+        </div>
+        <h2 class="sub-header">Data Table</h2>
+        <div class="table-responsive">
+            <table id="table" class="display" width="100%">
+                <thead>
+                    <th>County</th>
+                    <th>Population</th>
+                    <th>Voter Turnout %</th>
+                    <th>No Diploma %</th>
+                    <th>Diploma %</th>
+                    <th>Bachelors %</th>
+                    <th>Masters %</th>
+                    <th>Millennials %</th>
+                    <th>GenX %</th>
+                    <th>Boomers %</th>
+                    <th>Silents %</th>
+                    <th>Winner</th>
+                </thead>
+                <tfoot>
+                    <tr>
+                        <th>County</th>
+                        <th>Population</th>
+                        <th>Voter Turnout %</th>
+                        <th>No Diploma %</th>
+                        <th>Diploma %</th>
+                        <th>Bachelors %</th>
+                        <th>Masters %</th>
+                        <th>Millennials %</th>
+                        <th>GenX %</th>
+                        <th>Boomers %</th>
+                        <th>Silents %</th>
+                        <th>Winner</th>
+                    </tr>
+                </tfoot>
+                <tbody></tbody>
+            </table>
+
+
+        </div>
+    </div>
+
+
+
+    <!-- /container -->
+
+    <script type="text/javascript" src="http://mbostock.github.com/d3/d3.v2.js"></script>
+    <script src="//code.jquery.com/jquery-3.1.1.min.js"></script>
+    <script src="//cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript">
+        // shim layer with setTimeout fallback
+        window.requestAnimFrame = (function() {
+            return window.requestAnimationFrame ||
+                window.webkitRequestAnimationFrame ||
+                window.mozRequestAnimationFrame ||
+                window.oRequestAnimationFrame ||
+                window.msRequestAnimationFrame ||
+                function(callback) {
+                    window.setTimeout(callback, 1000 / 60);
+                };
+        })();
+
+        var m = [30, 10, 10, 10],
+            w = 1200 - m[1] - m[3],
+            h = 340 - m[0] - m[2];
+
+        var x = d3.scale.ordinal().rangePoints([0, w], 1),
+            y = {};
+
+        var line = d3.svg.line(),
+            axis = d3.svg.axis().orient("left"),
+            foreground,
+            dimensions,
+            brush_count = 0;
+
+        // data table column definitions
+        var columns = [{
+            head: 'County',
+            cl: 'title',
+            data: ('County')
+        }, {
+            head: 'Population',
+            cl: 'center',
+            data: ('Population')
+        }, {
+            head: 'Voter Turnout',
+            cl: 'center',
+            data: ('Voter Turnout (%)')
+        }, {
+            head: 'No Diploma',
+            cl: 'num',
+            data: ('No Diploma (%)')
+        }, {
+            head: 'Diploma',
+            cl: 'num',
+            data: ('Dimploma (%)')
+        }, {
+            head: 'Bachelors (%)',
+            cl: 'num',
+            data: ('Bachelors(%)')
+        }, {
+            head: 'Masters',
+            cl: 'num',
+            data: ('Masters (%)')
+        }, {
+            head: 'Millennials',
+            cl: 'num',
+            data: ('Millennials (%)')
+        }, {
+            head: 'GenX',
+            cl: 'num',
+            data: ('GenX (%)')
+        }, {
+            head: 'Boomers',
+            cl: 'num',
+            data: ('Boomers (%)')
+        }, {
+            head: 'Silents',
+            cl: 'num',
+            data: ('Silents (%)')
+        }, {
+            head: 'Winner',
+            cl: 'num',
+            data: ('Winner')
+        }];
+
+
+        d3.selectAll("canvas")
+            .attr("width", w + m[1] + m[3])
+            .attr("height", h + m[0] + m[2])
+            .style("padding", m.join("px ") + "px");
+
+        foreground = document.getElementById('foreground').getContext('2d');
+
+        foreground.strokeStyle = "rgba(0,100,160,0.1)";
+        foreground.lineWidth = ".3"
+
+        var svg = d3.select("svg")
+            .attr("width", w + m[1] + m[3])
+            .attr("height", h + m[0] + m[2])
+            .append("svg:g")
+            .attr("transform", "translate(" + m[3] + "," + m[0] + ")");
+
+        // Could value belong to a quantitative ordinal scale
+        var quant_p = function(v) {
+            return (parseFloat(v) == v) || (v == "")
+        };
+
+        d3.csv("data/parallel_coords_voting4.csv", function(data) {
+
+            // filter dimensions, exclude county in viz but keep in datatable
+            x.domain(dimensions = d3.keys(data[0]).filter(function(d) {
+                return d != "County";
+            }));
+
+
+            // Create a scale for each dimension.
+            dimensions.forEach(function(d) {
+                var vals = data.map(function(p) {
+                    return p[d];
+                });
+
+                if (vals.every(quant_p)) {
+                    // test case, not used
+                    if (d == "test") {
+                        y[d] = d3.scale.ordinal()
+                            .domain(["1", "2", "3", "4"])
+                            .rangePoints([h, 0], 1);
+                    } else {
+
+                        y[d] = d3.scale.linear()
+                            .domain(d3.extent(vals.map(function(p) {
+                                return +p
+                            })))
+                            .range([h, 0]);
+                    }
+                } else {
+                    y[d] = d3.scale.ordinal()
+                        .domain(vals.filter(function(v, i) {
+                            return vals.indexOf(v) == i;
+                        }))
+                        .rangePoints([h, 0], 1);
+                }
+            })
+
+            // fill the table
+            // create rows
+            var tr = d3.select("tbody").selectAll("tr")
+                .data(data).enter().append("tr")
+                // cells
+            var td = tr.selectAll("td")
+                .data(function(d) {
+                    return d3.values(d)
+                })
+                .enter().append("td")
+                .text(function(d) {
+                    return d
+                })
+
+            $('#table').DataTable();
+
+
+
+            // Render full foreground
+            paths(data, foreground, brush_count);
+
+            // Add a group element for each dimension.
+            var g = svg.selectAll(".dimension")
+                .data(dimensions)
+                .enter().append("svg:g")
+                .attr("class", "dimension")
+                .attr("transform", function(d) {
+                    return "translate(" + x(d) + ")";
+                });
+
+            // Add an axis and title.
+            g.append("svg:g")
+                .attr("class", "axis")
+                .each(function(d) {
+                    d3.select(this).call(axis.scale(y[d]));
+                })
+                .append("svg:text")
+                .attr("text-anchor", "middle")
+                .attr("y", -9)
+                .text(String);
+
+            // Add and store a brush for each axis.
+            g.append("svg:g")
+                .attr("class", "brush")
+                .each(function(d) {
+                    d3.select(this).call(y[d].brush = d3.svg.brush().y(y[d]).on("brush", brush));
+                })
+                .selectAll("rect")
+                .attr("x", -12)
+                .attr("width", 24);
+
+            // Handles a brush event, toggling the display of foreground lines.
+            function brush() {
+                brush_count++;
+                var actives = dimensions.filter(function(p) {
+                        return !y[p].brush.empty();
+                    }),
+                    extents = actives.map(function(p) {
+                        return y[p].brush.extent();
+                    });
+
+                // Get lines within extents
+                var selected = [];
+                data.map(function(d) {
+                    return actives.every(function(p, i) {
+                        var p_new = (y[p].ticks) ? d[p] : y[p](d[p]); //convert to pixel range if ordinal
+                        return extents[i][0] <= p_new && p_new <= extents[i][1];
+                    }) ? selected.push(d) : null;
+                });
+
+                // Render selected lines
+                foreground.clearRect(0, 0, w + 1, h + 1);
+                paths(selected, foreground, brush_count);
+
+
+            }
+
+            function paths(data, ctx, count) {
+                var n = data.length,
+                    i = 0,
+                    reset = false;
+
+                function render() {
+                    var max = d3.min([i + 60, n]);
+                    data.slice(i, max).forEach(function(d) {
+                        if (d.Winner == "CLINTON") {
+                            var colorLine = "#4682B4";
+                        } else {
+                            var colorLine = "#b44646";
+                        }
+
+                        path(d, foreground, colorLine);
+                    });
+                    i = max;
+                    d3.select("#rendered-count").text(i);
+                };
+                (function animloop() {
+                    if (i >= n || count < brush_count) return;
+                    requestAnimFrame(animloop);
+
+                    render();
+                })();
+            };
+        });
+
+
+        function path(d, ctx, color) {
+
+            if (color) ctx.strokeStyle = color;
+            ctx.beginPath();
+            dimensions.map(function(p, i) {
+                if (i == 0) {
+                    ctx.moveTo(x(p), y[p](d[p]));
+                } else {
+                    ctx.lineTo(x(p), y[p](d[p]));
+                }
+            });
+            ctx.stroke();
+
+
+        };
+
+    </script>
+
+
+</body>
+
+
+
+</html>
