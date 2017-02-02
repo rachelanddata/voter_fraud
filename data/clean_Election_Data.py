@@ -10,6 +10,11 @@ print("Reading file: " + file_name)
 
 df = pd.read_csv(file_name)
 
+# import states dict and convert to a dictionary
+df2 = pd.read_csv("StatesTable.csv")
+states = df2.set_index('StateAbbr').T.to_dict('list')
+
+
 df["candidate"] = df["candidate"].str.lower()
 
 # develop regex conditional statements to change values
@@ -59,10 +64,20 @@ df["leanR"] = df["romney"]/df["obama"]
 df.rename(columns={"fips": "County", "county":"CountyName"}, inplace=True)
 
 # pull out the state abbreviation from the filename
-stateAbbr = file_name[:2]
+stateAbbr = file_name[:2].upper()
 
 # uppercase state abbreviation
-df["StateAbbr"] =  stateAbbr.upper()
+df["StateAbbr"] =  stateAbbr
+
+# get the matching value on StateAbbr join key
+stateName = states[stateAbbr]
+
+# funky way to convert dict value to string
+stateNameStr, = stateName
+
+print("The State Name is " + stateNameStr)
+
+df["StateName"] = stateNameStr
 
 # define the out file name
 file_name_out = stateAbbr + "_12.csv"
